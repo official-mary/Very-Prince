@@ -2,6 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test.describe('General UI and Navigation', () => {
   test.beforeEach(async ({ page }) => {
+    // Print browser console logs to host console
+    page.on('console', msg => console.log(`BROWSER_LOG [${msg.type()}]: ${msg.text()}`));
+    page.on('pageerror', err => console.error(`BROWSER_ERROR: ${err.message}`));
+
     // Mock Freighter wallet environment to avoid real extension dependency
     await page.addInitScript(() => {
       // Mock Freighter API's postMessage communication
@@ -60,6 +64,9 @@ test.describe('General UI and Navigation', () => {
 
   test('navigating to dashboard shows the main interface', async ({ page }) => {
     await page.goto('/');
+
+    // Wait for the wallet to connect on the homepage first to prevent E2E race conditions
+    await expect(page.getByText('GABC...WXYZ')).toBeVisible();
 
     // Click on Dashboard link
     await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
