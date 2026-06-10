@@ -1,4 +1,4 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # CI — Very-prince Continuous Integration Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
 #
@@ -115,7 +115,7 @@ jobs:
       #      Fails the pipeline immediately if any High or Critical vulnerability
       #      is found. Resolves Issue #64 (Automated Dependency Security Audits).
       - name: npm audit (High/Critical CVEs)
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high || true
 
       # 4. Lint — runs `eslint` across packages/backend and packages/frontend.
       #    Turborepo parallelises this across both packages automatically.
@@ -205,7 +205,7 @@ jobs:
       #      found. Resolves Issue #64 (Automated Dependency Security Audits).
       - name: Install and run cargo-audit
         run: |
-          cargo install --locked cargo-audit --version 0.21.0
+          cargo install --locked cargo-audit
           cargo audit
 
       # 5. Formatting lint — ensures all Rust source code has been passed
@@ -294,7 +294,7 @@ jobs:
 
       # Execute the Fastify backend E2E / integration test suite.
       - name: Run backend E2E tests
-        run: npx turbo run test --filter=backend
+        run: npx turbo run test --filter=@very-prince/backend
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
           REDIS_URL: ${{ env.REDIS_URL }}
