@@ -20,6 +20,13 @@
       "@/*": [
         "./src/*"
       ]
+    ,
+      "@backend/*": [
+        "../backend/src/*"
+      ],
+      "@contracts/*": [
+        "../contracts/src/*"
+      ]
     },
     "allowJs": true,
     "noEmit": true,
