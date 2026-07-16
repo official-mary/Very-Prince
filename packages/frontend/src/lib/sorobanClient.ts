@@ -126,6 +126,9 @@ class SorobanClient {
   // ─── Public Read API ───────────────────────────────────────────────────────────
 
   public async readOrganization(orgId: string): Promise<Organization> {
+    if (typeof window !== "undefined" && (window as any).__MOCK_SOROBAN_CLIENT__?.readOrganization) {
+      return (window as any).__MOCK_SOROBAN_CLIENT__.readOrganization(orgId);
+    }
     const raw = await this._simulateContractCall("get_org", [orgId]);
     const map = raw as Record<string, unknown>;
     return {
@@ -137,11 +140,17 @@ class SorobanClient {
   }
 
   public async readMaintainers(orgId: string): Promise<string[]> {
+    if (typeof window !== "undefined" && (window as any).__MOCK_SOROBAN_CLIENT__?.readMaintainers) {
+      return (window as any).__MOCK_SOROBAN_CLIENT__.readMaintainers(orgId);
+    }
     const raw = await this._simulateContractCall("get_maintainers", [orgId]);
     return Array.isArray(raw) ? (raw as string[]) : [];
   }
 
   public async readClaimableBalance(address: string): Promise<MaintainerBalance> {
+    if (typeof window !== "undefined" && (window as any).__MOCK_SOROBAN_CLIENT__?.readClaimableBalance) {
+      return (window as any).__MOCK_SOROBAN_CLIENT__.readClaimableBalance(address);
+    }
     const raw = await this._simulateContractCall("get_claimable_balance", [address]);
     const stroops = BigInt(raw as number);
     const xlm = (Number(stroops) / 10_000_000).toFixed(7);
@@ -149,6 +158,9 @@ class SorobanClient {
   }
 
   public async readOrgBudget(orgId: string): Promise<Pick<MaintainerBalance, "stroops" | "xlm">> {
+    if (typeof window !== "undefined" && (window as any).__MOCK_SOROBAN_CLIENT__?.readOrgBudget) {
+      return (window as any).__MOCK_SOROBAN_CLIENT__.readOrgBudget(orgId);
+    }
     const raw = await this._simulateContractCall("get_org_budget", [orgId]);
     const stroops = BigInt(raw as number);
     const xlm = (Number(stroops) / 10_000_000).toFixed(7);
