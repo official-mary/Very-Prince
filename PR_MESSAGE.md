@@ -1,26 +1,15 @@
-# Add snapshot testing for key Next.js UI components
+# Add indexing to the organization_id column in PostgreSQL
 
 ## Overview
-This PR adds snapshot testing for key Next.js UI components and addresses several critical configuration and compatibility issues in the existing vitest setup on Windows environments.
+This PR adds the missing database index for the `orgId` (organization ID) column in the `Maintainer` table in PostgreSQL, matching the index definition in the Prisma schema (`schema.prisma`). It also includes a unit test to verify that the index exists in the database migrations.
 
 ## What changed
-- **Snapshot Tests**: Created new snapshot tests in `packages/frontend/src/components/__tests__/snapshots.test.tsx` covering:
-  - `GlassButton` (Primary and Secondary buttons/links)
-  - `GlassPanel` (With custom class names and children)
-  - `OrganizationSkeletonCard` (Visual loading state)
-  - `EmptyMaintainersState` (Premium empty state for registered organizations)
-- **Vitest Config Fix**: Cleaned up conflicting duplicate imports and invalid syntax inside `vitest.config.ts`.
-- **Mocking and Matcher Resolutions**:
-  - Replaced `jest.mock` / `jest.Mock` with `vi.mock` / `vi.mocked` in `dashboardOrgPage.test.tsx` for proper Vitest integration.
-  - Added `@testing-library/jest-dom` import in `XdrDebugPanel.test.tsx` to enable the `toBeInTheDocument` matcher.
-  - Structured test mock variables in `sorobanClient.test.ts` within `vi.hoisted` blocks to prevent TDZ ReferenceErrors caused by Vitest's hoisting transform.
-  - Made the `beforeEach` block in `sorobanClient.test.ts` async to support `await import`.
-- **Skeleton Component Update**: Added `data-testid="organization-skeleton"` to `OrganizationSkeletonCard` to satisfy existing test assertions.
-- **Dependencies Management**: Added missing transitive testing/styling devDependencies directly in `packages/frontend/package.json` to ensure clean installation on Windows.
+- **Database Migrations**: Created a new Prisma migration (`20260717120000_add_maintainer_org_id_index`) containing the SQL command `CREATE INDEX "Maintainer_orgId_idx" ON "Maintainer"("orgId")` to create the index in PostgreSQL.
+- **Backend Tests**: Created [databaseSchema.test.ts](file:///c:/Users/Hp/Desktop/111/Very-Prince/packages/backend/src/tests/databaseSchema.test.ts) to read the migration SQL files and assert that the `Maintainer_orgId_idx` index creation statement is present.
 
 ## Why
-Adding snapshot testing captures the HTML output of key UI components, ensuring any future layout or styling changes are caught immediately. Fixing existing test setup blocks prevents developer friction and provides a robust verification suite.
+The index `@@index([orgId])` was defined in the Prisma schema `schema.prisma` but was missing from the initial migration SQL script. Adding this index resolves the discrepancy and optimizes query performance when retrieving maintainers by organization ID.
 
 ## Verification
-- Ran `npm run test` in `packages/frontend`
-- Result: 9 test files passed, 50 tests passed (including 6 new written snapshots), 0 failed
+- Verified that the migration SQL syntax matches PostgreSQL specifications.
+- Verified that the unit test correctly asserts the index's presence in the migrations directory.
