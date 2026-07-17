@@ -64,10 +64,10 @@ import {
   CONTRACT_ID,
   HORIZON_URL,
   NETWORK_PASSPHRASE,
-  RPC_URL,
 } from "../config/env.js";
 import { withRetry } from "../utils/retry.js";
 import { decodeI128ToBigInt, stroopsToXlm } from "../utils/xdrDecoder.js";
+import { getSorobanRpcClient } from "./sorobanRpcService.js";
 import type { AccountInfo, ContractCallResult, PayoutEvent, ProfileStats } from "@very-prince/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -87,9 +87,8 @@ export class StellarService {
       allowHttp: HORIZON_URL.startsWith("http://"), // allow HTTP for local dev only
     });
 
-    this.rpcServer = new SorobanRpc.Server(RPC_URL, {
-      allowHttp: RPC_URL.startsWith("http://"),
-    });
+    // Use the dedicated Soroban RPC service for client initialization
+    this.rpcServer = getSorobanRpcClient();
   }
 
   /**
