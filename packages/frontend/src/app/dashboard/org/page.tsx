@@ -88,7 +88,7 @@ export default function DashboardOrganizationsPage() {
 
       {/* ── Content ────────────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <OrganizationSkeletonCard key={i} />
           ))}
@@ -98,7 +98,7 @@ export default function DashboardOrganizationsPage() {
           <p className="text-red-200">Failed to load organizations. Please try again.</p>
         </div>
       ) : data?.list && data.list.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {data.list.map((org: Org) => (
             <Link key={org.id} href={`/dashboard/org/${org.id}`}>
               <div className="glass-panel p-6 hover:bg-white/15 transition-all duration-200 cursor-pointer group">
