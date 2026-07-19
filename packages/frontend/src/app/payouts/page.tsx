@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import useSWR from "swr";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { WalletButton } from "@/components/WalletButton";
 import { useSSEWithSWR } from "@/hooks/useSSE";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
@@ -61,9 +61,11 @@ export default function PayoutsPage() {
   useSSEWithSWR();
 
   // Fetch pending payouts for the connected wallet
-  const { data: payouts, error, isLoading, mutate } = useSWR(
-    isConnected && publicKey ? [`/api/v1/contract/maintainer/${publicKey}`] : null,
-    async ([url]) => {
+  const { data: payouts, error, isLoading, refetch } = useQuery({
+    queryKey: ["payouts", publicKey],
+    enabled: isConnected && Boolean(publicKey),
+    queryFn: async () => {
+      const url = `/api/v1/contract/maintainer/${publicKey}`;
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"}${url}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch payouts: ${response.statusText}`);
@@ -108,48 +110,64 @@ export default function PayoutsPage() {
     }
   };
 
-  const handleExportData = async (format: 'csv' | 'json') => {
-    if (!publicKey) return;
-    
-    setIsExporting(true);
-    try {
+  const exportMutation = useMutation({
+    mutationFn: async (format: 'csv' | 'json') => {
+      if (!publicKey) return;
       const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
       const url = new URL(`/api/export/payouts/${publicKey}`, baseUrl);
       url.searchParams.set('type', format);
-      
+
       const response = await fetch(url.toString());
       if (!response.ok) {
         throw new Error(`Export failed: ${response.statusText}`);
       }
-      
-      // Get filename from Content-Disposition header or create default
+
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = `payout-history-${publicKey}-${new Date().toISOString().split('T')[0]}.${format}`;
-      
+
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
         if (filenameMatch && filenameMatch[1]) {
           filename = filenameMatch[1];
         }
       }
-      
-      // Create blob and download
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
+
+      return { blob: await response.blob(), filename };
+    },
+    onSuccess: (data) => {
+      if (!data) return;
+      const downloadUrl = window.URL.createObjectURL(data.blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = filename;
+      link.download = data.filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
-      
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Export failed:", error);
       alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsExporting(false);
+    },
+  });
+
+  const handleClaimPayout = async (orgId: string) => {
+    try {
+      await claimPayout(orgId);
+      // Refresh the payouts list after successful claim
+      await refetch();
+    } catch (error) {
+      console.error("Failed to claim payout:", error);
     }
+  };
+
+  const handleExportData = async (format: 'csv' | 'json') => {
+    if (!publicKey) return;
+    
+    setIsExporting(true);
+    exportMutation.mutate(format, {
+      onSettled: () => setIsExporting(false),
+    });
   };
 
   if (!isConnected) {
@@ -216,6 +234,7 @@ export default function PayoutsPage() {
               <button
                 onClick={() => handleExportData('csv')}
                 disabled={isExporting}
+                aria-label={isExporting ? "Exporting data as CSV" : "Export payouts as CSV"}
                 className="rounded-lg bg-white/10 hover:bg-white/20 px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isExporting ? (
@@ -235,6 +254,7 @@ export default function PayoutsPage() {
               <button
                 onClick={() => handleExportData('json')}
                 disabled={isExporting}
+                aria-label={isExporting ? "Exporting data as JSON" : "Export payouts as JSON"}
                 className="rounded-lg bg-white/10 hover:bg-white/20 px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isExporting ? (
