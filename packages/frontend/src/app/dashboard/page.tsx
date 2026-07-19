@@ -15,6 +15,7 @@ import { AllocatePayoutModal } from "@/components/AllocatePayoutModal";
 import { EmptyMaintainersState } from "@/components/EmptyMaintainersState";
 import { WebhookSettings } from "@/components/WebhookSettings";
 import { ApiKeySettings } from "@/components/ApiKeySettings";
+import { FundingHistoryChart } from "@/components/FundingHistoryChart";
 import { useFreighter } from "@/hooks/useFreighter";
 import {
   readOrganization,
@@ -238,6 +239,7 @@ function DashboardPageInner() {
                 <button
                   onClick={() => void handleLookupOrg()}
                   disabled={isLoading || !orgIdInput.trim()}
+                  aria-label={isLoading ? "Looking up organization" : "Look up organization"}
                   className="rounded-lg bg-gradient-to-r from-stellar-purple to-brand-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-stellar-purple/20 transition-all duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isLoading ? "Loading..." : "Lookup"}
@@ -254,6 +256,8 @@ function DashboardPageInner() {
               <div className="mb-6 flex gap-8 border-b border-white/10">
                 <button
                   onClick={() => setActiveTab("overview")}
+                  role="tab"
+                  aria-selected={activeTab === "overview"}
                   className={`pb-4 text-sm font-semibold transition-all ${
                     activeTab === "overview"
                       ? "border-b-2 border-stellar-purple text-white"
@@ -264,6 +268,8 @@ function DashboardPageInner() {
                 </button>
                 <button
                   onClick={() => setActiveTab("settings")}
+                  role="tab"
+                  aria-selected={activeTab === "settings"}
                   className={`pb-4 text-sm font-semibold transition-all ${
                     activeTab === "settings"
                       ? "border-b-2 border-stellar-purple text-white"
@@ -327,12 +333,14 @@ function DashboardPageInner() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => setShowAllocateModal(true)}
+                            aria-label="Open allocate payout form"
                             className="rounded-lg border border-stellar-purple/30 bg-stellar-purple/10 px-5 py-2.5 text-sm font-semibold text-stellar-purple hover:bg-stellar-purple/20 transition-all"
                           >
                             Allocate Payout
                           </button>
                           <button
                             onClick={() => setShowFundModal(true)}
+                            aria-label="Open fund organization form"
                             className="rounded-lg bg-white/10 px-5 py-2.5 text-sm font-semibold text-white hover:bg-stellar-teal transition-all"
                           >
                             Fund Org
@@ -340,6 +348,10 @@ function DashboardPageInner() {
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  <div className="mb-8">
+                    <FundingHistoryChart orgId={organization.id} />
                   </div>
 
                   {/* ── Maintainer Balances ── */}

@@ -7,6 +7,8 @@ import { initTRPC } from '@trpc/server';
 import { z } from 'zod';
 import { stellarService } from '../services/stellarService.js';
 import { safeGet, safeSet } from '../services/cache.js';
+import { statsController } from '../controllers/statsController.js';
+import { logger } from '../utils/logger.js';
 
 // Create tRPC instance
 export const t = initTRPC.create();
@@ -31,7 +33,7 @@ export const appRouter = t.router({
             return JSON.parse(cachedResult);
           } catch (error) {
             // Cache corrupted, continue to fetch from contract
-            console.warn(`Cache corruption for key ${cacheKey}:`, error);
+            logger.warn({ err: error, cacheKey }, "Cache corruption detected, fetching from contract");
           }
         }
 
@@ -44,7 +46,7 @@ export const appRouter = t.router({
           
           return orgDetails;
         } catch (error) {
-          console.error(`Failed to fetch organization details for ${id}:`, error);
+          logger.error({ err: error, orgId: id }, "Failed to fetch organization details from contract");
           
           // Check if it's a "not found" error from the contract
           if (error instanceof Error && error.message.includes("not found")) {
@@ -118,6 +120,13 @@ export const appRouter = t.router({
       totalVolume: '0',
       lastSync: new Date().toISOString(),
     })),
+    getFundingHistory: t.procedure
+      .input(z.object({
+        orgId: z.string().min(1).max(32),
+      }))
+      .query(async ({ input }) => {
+        return statsController.getOrgFundingHistory(input.orgId);
+      }),
   }),
 });
 
