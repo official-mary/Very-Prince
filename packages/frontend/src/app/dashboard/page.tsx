@@ -174,8 +174,10 @@ function DashboardPageInner() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
         {/* ── Wallet Guard ── */}
-        {isInitialized && !isConnected ? (
-          <div className="flex flex-col items-center justify-center py-32 text-center">
+        {!isInitialized ? (
+          <div className="flex min-h-[520px] flex-col items-center justify-center py-32 text-center" />
+        ) : !isConnected ? (
+          <div className="flex min-h-[520px] flex-col items-center justify-center py-32 text-center">
             <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-stellar-purple/30 bg-stellar-purple/10">
               <LockIcon />
             </div>
@@ -253,8 +255,9 @@ function DashboardPageInner() {
             </div>
 
             {/* ── Tabs ── */}
-            {organization && (
-              <div className="mb-6 flex gap-8 border-b border-white/10">
+            <div className="mb-6 flex h-[41px] gap-8 border-b border-white/10">
+              {organization && (
+                <>
                 <button
                   onClick={() => setActiveTab("overview")}
                   role="tab"
@@ -279,8 +282,9 @@ function DashboardPageInner() {
                 >
                   Settings
                 </button>
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             {/* ── Error ── */}
             {error && (
