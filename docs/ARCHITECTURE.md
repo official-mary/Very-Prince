@@ -174,6 +174,7 @@ DynamoDB locking is enforced on every run.
 - Trivy runs `trivy image --exit-code 1 --severity HIGH,CRITICAL` against the compiled image. Any High or Critical CVE makes the scan command return a non-zero status, stopping the pipeline before Terraform apply/deployment.
 - OS detection: `isUnix()` → `sh` on Linux, `bat` on Windows. Jenkins agents require native Docker and Trivy CLIs on their `PATH`.
 - Artifact: `tfplan` passed between Plan/Apply
+- Build/deploy steps (tool setup, `terraform init`/`validate`/`plan`/`apply`, Docker build, Trivy scan) are abstracted into reusable functions in `jenkins-shared-library/vars/*.groovy`, used by both this pipeline and `Jenkinsfile.rds-snapshot-lifecycle`. They're loaded today via the `load()` step (no Jenkins admin action required); see `jenkins-shared-library/README.md` for the follow-up to extract this into a dedicated repository and register it as a Jenkins Global Pipeline Library (`@Library`).
 
 ## Windows Support
 - `scripts/terraform-setup.ps1`: Chocolatey/Scoop/Zip install
@@ -181,6 +182,7 @@ DynamoDB locking is enforced on every run.
 - Jenkins pipeline uses `bat` on Windows agents
 - The CDN module uses only the Terraform AWS provider and runs with the native Windows Terraform CLI; WSL is not required.
 - The RDS snapshot lifecycle module and its dedicated Jenkinsfile use only native `terraform.exe` / `terraform` commands; WSL is not required.
+- `jenkins-shared-library/vars/*.groovy` steps branch on `isUnix()` the same way the Jenkinsfiles did before extraction, so Windows agents still run `bat`/`terraform.exe` natively; no WSL dependency was introduced.
 
 ## CDN Configuration
 
@@ -423,12 +425,14 @@ These validations fail `terraform plan` early, before any AWS API call, so misco
 - Trivy runs `trivy image --exit-code 1 --severity HIGH,CRITICAL` against the compiled image. Any High or Critical CVE makes the scan command return a non-zero status, stopping the pipeline before Terraform apply/deployment.
 - OS detection: `isUnix()` → `sh` on Linux, `bat` on Windows. Jenkins agents require native Docker and Trivy CLIs on their `PATH`.
 - Artifact: `tfplan` passed between Plan/Apply
+- Build/deploy steps (tool setup, `terraform init`/`validate`/`plan`/`apply`, Docker build, Trivy scan) are abstracted into reusable functions in `jenkins-shared-library/vars/*.groovy`, used by both this pipeline and `Jenkinsfile.rds-snapshot-lifecycle`. They're loaded today via the `load()` step (no Jenkins admin action required); see `jenkins-shared-library/README.md` for the follow-up to extract this into a dedicated repository and register it as a Jenkins Global Pipeline Library (`@Library`).
 
 ## Windows Support
 - `scripts/terraform-setup.ps1`: Installs Terraform on native Windows via Chocolatey, Scoop, or direct zip download. No WSL or Linux subsystem is required.
 - `scripts/bootstrap-terraform-backend.ps1`: Native Windows bootstrap equivalent of `scripts/bootstrap-terraform-backend.sh`; migrates local state to S3 + DynamoDB using `terraform.exe` directly.
 - The Jenkins pipeline uses `bat` steps on Windows agents and `sh` steps on Unix agents.
 - All Terraform modules use only the AWS provider and run with the native Windows Terraform CLI; WSL is not required.
+- `jenkins-shared-library/vars/*.groovy` steps branch on `isUnix()` the same way the Jenkinsfiles did before extraction, so Windows agents still run `bat`/`terraform.exe` natively; no WSL dependency was introduced.
 - `scripts/terraform-setup.ps1`: Chocolatey/Scoop/Zip install
 - No WSL required
 - Jenkins pipeline uses `bat` on Windows agents
