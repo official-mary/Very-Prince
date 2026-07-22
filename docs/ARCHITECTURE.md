@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the AWS infrastructure provisioned via Terraform for the very-prince backend service and its Next.js static-asset CDN. The infrastructure enables CloudWatch log aggregation, metric alarms, dashboards, SNS alert notifications for an ECS Fargate cluster, and global delivery of immutable frontend bundles.
+This document describes the AWS infrastructure provisioned via Terraform for the very-prince backend service and its Next.js static-asset CDN. The infrastructure enables CloudWatch log aggregation, metric alarms, dashboards, SNS alert notifications for an ECS Fargate cluster, global delivery of immutable frontend bundles, and automated lifecycle management for RDS snapshots.
 
 ```mermaid
 flowchart TD
@@ -28,6 +28,12 @@ flowchart TD
         LockTable["DynamoDB Table\nvery-prince-terraform-locks\n(Pay-per-request,\nLockID hash key,\nPITR + SSE)"]
         State --- StateBucket
         State --- LockTable
+        
+        subgraph DataProtection["Data Protection"]
+            EBRule["EventBridge Rule\nvery-prince-shared-prune-schedule"]
+            PruneLambda["Lambda Function\nvery-prince-shared-prune-snapshots"]
+            Snapshots["Manual RDS DB / Cluster\nSnapshots"]
+        end
     end
     
     Jenkins["Jenkins Pipeline\nBuild → Trivy scan → Terraform"] -->|terraform apply| State
@@ -139,6 +145,16 @@ DynamoDB locking is enforced on every run.
 - `_next/static/*` uses a dedicated cache policy with a fixed one-year TTL. These paths contain Next.js content-hashed, immutable bundles.
 - All other paths use a zero-TTL fallback, so immutable caching cannot be applied accidentally to mutable content.
 
+### RDS Snapshot Lifecycle (`terraform/modules/rds-snapshot-lifecycle/`)
+- **Purpose**: prune orphaned manual RDS DB snapshots and DB cluster snapshots that are older than the configured retention period to reduce storage costs.
+- **Trigger**: EventBridge rule (`very-prince-shared-prune-schedule`) on the `rds_snapshot_prune_schedule` expression (default `rate(1 day)`).
+- **Compute**: Python 3.11 Lambda (`very-prince-shared-prune-snapshots`) that paginates through `DescribeDBSnapshots` and `DescribeDBClusterSnapshots` with `SnapshotType = "manual"`, compares `SnapshotCreateTime` to the retention cutoff, and calls `DeleteDBSnapshot` / `DeleteDBClusterSnapshot`.
+- **IAM**: least-privilege inline policy (`rds:DescribeDBSnapshots`, `rds:DescribeDBClusterSnapshots`, `rds:DeleteDBSnapshot`, `rds:DeleteDBClusterSnapshot`) plus CloudWatch Logs permissions.
+- **Configuration as code**:
+  - `rds_snapshot_retention_days` (default `7`) — days to keep manual snapshots
+  - `rds_backup_window` (default `03:00-04:00`) — preferred UTC backup window captured as code
+  - `rds_snapshot_prune_schedule` (default `rate(1 day)`) — EventBridge schedule expression for pruning
+
 ## Data Flow
 
 1. ECS tasks emit stdout/stderr → `awslogs` driver → CloudWatch Log Group
@@ -148,6 +164,7 @@ DynamoDB locking is enforced on every run.
 5. Dashboard visualizes all metrics in single pane
 6. Browser requests for `/_next/static/*` are served from the nearest CloudFront edge; cache misses are signed and fetched from the private S3 origin.
 7. Jenkins builds `packages/backend/Dockerfile` as `very-prince-backend:$BUILD_NUMBER` and scans that exact local image with Trivy before Terraform can apply changes.
+8. EventBridge invokes the snapshot pruning Lambda on its configured schedule; the Lambda deletes manual RDS snapshots older than `rds_snapshot_retention_days`.
 
 ## Jenkins Pipeline (`Jenkinsfile`)
 - Declarative syntax
@@ -157,40 +174,12 @@ DynamoDB locking is enforced on every run.
 - OS detection: `isUnix()` → `sh` on Linux, `bat` on Windows. Jenkins agents require native Docker and Trivy CLIs on their `PATH`.
 - Artifact: `tfplan` passed between Plan/Apply
 
-### State Locking in CI
-
-The `Init` stage calls `terraform init` with explicit `-backend-config`
-flags so the S3 bucket, DynamoDB lock table, region, and `encrypt=true`
-settings are always passed to the backend (matching the values in
-`terraform/backend.tf`):
-
-```
-terraform init \
-  -input=false \
-  -backend-config="bucket=${STATE_BUCKET_NAME}" \
-  -backend-config="dynamodb_table=${DYNAMODB_LOCK_TABLE}" \
-  -backend-config="region=${AWS_DEFAULT_REGION}" \
-  -backend-config="encrypt=true"
-```
-
-Immediately after `Init`, the `Verify Backend Lock` stage probes the
-DynamoDB lock table by running `terraform force-unlock -force
-nonexistent-lock-id`. Terraform contacts the configured lock table and
-returns an error referencing the missing lock. The stage asserts that
-the output contains the word `lock` (case-insensitive) — this proves the
-S3 backend and DynamoDB lock table are both reachable from the Jenkins
-agent. The stage intentionally tolerates the non-zero exit code from
-`force-unlock`; only the absence of the word `lock` in the output fails
-the build.
-
-Both `Plan` and `Apply` use `-lock=true -lock-timeout=300s` so every CI
-run asserts DynamoDB-side locks during execution.
-
 ## Windows Support
 - `scripts/terraform-setup.ps1`: Chocolatey/Scoop/Zip install
 - No WSL required
 - Jenkins pipeline uses `bat` on Windows agents
 - The CDN module uses only the Terraform AWS provider and runs with the native Windows Terraform CLI; WSL is not required.
+- The RDS snapshot lifecycle module and its dedicated Jenkinsfile use only native `terraform.exe` / `terraform` commands; WSL is not required.
 
 ## CDN Configuration
 
@@ -212,3 +201,8 @@ https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashbo
 
 ### Log Group
 - `/ecs/very-prince-backend`
+
+### RDS Snapshot Lifecycle
+- Lambda function: `very-prince-shared-prune-snapshots`
+- EventBridge rule: `very-prince-shared-prune-schedule`
+- Lambda IAM role: `very-prince-shared-snapshot-prune-role`
