@@ -1,3 +1,15 @@
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+locals {
+  # var.image_uri is "<registry-host>/<repo-name>[:tag]"; strip the host and
+  # tag to recover the bare repository name so the ECR pull permissions below
+  # can be scoped to that single repository instead of "*".
+  ecr_repository_and_tag = join("/", slice(split("/", var.image_uri), 1, length(split("/", var.image_uri))))
+  ecr_repository_name    = split(":", local.ecr_repository_and_tag)[0]
+  ecr_repository_arn     = "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${local.ecr_repository_name}"
+}
+
 data "aws_iam_policy_document" "execution_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -23,21 +35,25 @@ data "aws_iam_policy_document" "execution_policy" {
     sid = "CloudWatchLogsWrite"
     actions = [
       "logs:CreateLogStream",
-      "logs:PutLogEvents",
-      "logs:DescribeLogGroups",
-      "logs:DescribeLogStreams"
+      "logs:PutLogEvents"
     ]
+    resources = ["${var.log_group_arn}:*"]
+  }
+  statement {
+    # ecr:GetAuthorizationToken is an account-level action and does not
+    # support resource-level permissions; AWS requires resources = ["*"].
+    sid       = "ECRAuthToken"
+    actions   = ["ecr:GetAuthorizationToken"]
     resources = ["*"]
   }
   statement {
     sid = "ECRImagePull"
     actions = [
-      "ecr:GetAuthorizationToken",
       "ecr:BatchCheckLayerAvailability",
       "ecr:GetDownloadUrlForLayer",
       "ecr:BatchGetImage"
     ]
-    resources = ["*"]
+    resources = [local.ecr_repository_arn]
   }
 }
 

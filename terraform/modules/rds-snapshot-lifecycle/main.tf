@@ -21,6 +21,13 @@ terraform {
 # IAM Role for Lambda execution
 # ──────────────────────────────────────────────────────────────────────────────
 
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+locals {
+  function_name = "${var.name_prefix}-prune-snapshots"
+}
+
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -46,6 +53,8 @@ resource "aws_iam_role" "lambda" {
 
 data "aws_iam_policy_document" "lambda_policy" {
   statement {
+    # rds:Describe* actions do not support resource-level permissions; AWS
+    # requires resources = ["*"] for these.
     sid = "RDSDescribeSnapshots"
     actions = [
       "rds:DescribeDBSnapshots",
@@ -55,12 +64,15 @@ data "aws_iam_policy_document" "lambda_policy" {
   }
 
   statement {
-    sid = "RDSDeleteSnapshots"
-    actions = [
-      "rds:DeleteDBSnapshot",
-      "rds:DeleteDBClusterSnapshot"
-    ]
-    resources = ["*"]
+    sid       = "RDSDeleteSnapshots"
+    actions   = ["rds:DeleteDBSnapshot"]
+    resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:snapshot:*"]
+  }
+
+  statement {
+    sid       = "RDSDeleteClusterSnapshots"
+    actions   = ["rds:DeleteDBClusterSnapshot"]
+    resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster-snapshot:*"]
   }
 
   statement {
@@ -70,7 +82,9 @@ data "aws_iam_policy_document" "lambda_policy" {
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
-    resources = ["*"]
+    resources = [
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.function_name}:*"
+    ]
   }
 }
 
@@ -78,13 +92,6 @@ resource "aws_iam_role_policy" "lambda" {
   name   = "${var.name_prefix}-snapshot-prune-policy"
   role   = aws_iam_role.lambda.name
   policy = data.aws_iam_policy_document.lambda_policy.json
-}
-
-# Attach AWS-managed Lambda basic execution role for convenience (complements
-# the custom inline policy above).
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -103,7 +110,7 @@ data "archive_file" "lambda_zip" {
 # ──────────────────────────────────────────────────────────────────────────────
 
 resource "aws_lambda_function" "prune" {
-  function_name    = "${var.name_prefix}-prune-snapshots"
+  function_name    = local.function_name
   filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
   handler          = "prune_snapshots.lambda_handler"

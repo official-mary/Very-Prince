@@ -18,6 +18,11 @@ variable "log_group_name" {
   type        = string
 }
 
+variable "log_group_arn" {
+  description = "CloudWatch log group ARN, used to scope the execution role's logging permissions"
+  type        = string
+}
+
 variable "image_uri" {
   description = "Docker image URI"
   type        = string
